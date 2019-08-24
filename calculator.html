@@ -1,0 +1,314 @@
+<html>
+	<head>
+		<title>生活计算器</title>
+	</head>
+	<body>
+		<div>
+			<div>
+				<span>
+					计算电费
+				</span>
+			</div>
+			<div>
+				<div id="electricty"></div>
+			</div>
+		</div>
+		<script>
+
+			(function (root) {
+
+				function getById(id) {
+					return document.getElementById(id);
+				}
+
+				function querySel(selector) {
+					return document.querySelector(selector);
+				}
+
+				function querySelAll(selector) {
+					return document.querySelectorAll(selector);
+				}
+
+				function merge(target, data) {
+					for (var i in data) {
+						if (data.hasOwnProperty(i)) {
+							target[i] = data[i];
+						}
+					}
+				}
+
+				function Calculator(options) {
+					merge(this.options, options);
+					this.init();
+				}
+
+				Calculator.prototype = {
+					constructor: Calculator,
+
+					options: {
+						family: 0,
+						money: [],
+						ladder: [],
+						tips: {
+							stepPrice: '阶梯价格',
+							stepNum: '阶梯数量',
+							totalNum: '总表数量',
+							totalPrice: '总表金额'
+						},
+						unit_price: '元',
+						unit_num: ''
+					},
+
+					init: function () {
+						if (!this.options.wrapper
+							|| !this.options.family
+							|| !this.options.money.length
+							|| !this.options.ladder.length
+							|| !this.options.money.length !== !this.options.ladder.length) {
+							return;
+						}
+
+						this.formDoms = {};
+						this.values = {};
+						this.initDom();
+						this.initEvent();
+						this.initValue();
+					},
+
+					initDom: function () {
+						this.createDom();
+						this.getDom();
+					},
+
+					createDom: function () {
+						var wrapper = querySel(this.options.wrapper);
+						var html = [
+							'<div class="wrapper">',
+								'<ul>',
+									'<li>',
+										'<span>总表数量:</span><input class="totalNumber" type="text">',
+									'</li>',
+									'<li>',
+										'<span>总表金额:</span><input class="total" type="text">',
+									'</li>',
+									'<li>',
+										'<span>家庭数量:</span><input class="family" type="text">',
+									'</li>',
+									'<li>',
+										'<span>分表数量:</span>',
+										'<ul class="numbers"></ul>',
+									'</li>',
+								'</ul>',
+								'<div>',
+									'<span class="btn">计算</span>',
+								'</div>',
+							'</div>'
+						].join('');
+
+						wrapper.innerHTML = html;
+
+						this.createSub();
+					},
+
+					getDom: function () {
+						this.formDoms = {
+							numbers: querySelAll(this.getSelector(['.numbers', 'input'])),
+							family: querySel(this.getSelector(['.family'])),
+							totalNumber: querySel(this.getSelector(['.totalNumber'])),
+							total: querySel(this.getSelector(['.total']))
+						};
+
+						this.btn = querySel(this.getSelector(['.btn']));
+					},
+
+					createSub: function () {
+						var html = [];
+
+						for (var i = 0; i < this.options.family; i++) {
+							html.push('<li><span>分表' + i + ':</span><input type="text"></li>');
+						}
+
+						querySel(this.getSelector('.numbers')).innerHTML = html.join('');
+
+						this.formDoms.numbers = querySelAll(this.getSelector(['.numbers', 'input']));
+					},
+
+					getSelector: function (selector) {
+						return [this.options.wrapper].concat(selector).join(' ');
+					},
+
+					initEvent: function () {
+						var me = this;
+
+						me.btn.addEventListener('click', function () {
+							var formDoms = me.formDoms;
+
+							for (var i in formDoms) {
+								if (formDoms.hasOwnProperty(i)) {
+									if (i === 'numbers') {
+										var numberValue = [];
+										var numbers = formDoms[i];
+
+										for (var j = 0; j < numbers.length; j++) {
+											numberValue.push(numbers[j].value);
+										}
+
+										me.values[i] = numberValue;
+									}
+									else {
+										me.values[i] = formDoms[i].value;
+									}
+								}
+							}
+
+							me.initLadder();
+							me.calculat();
+							me.show();
+						});
+
+						me.formDoms.family.addEventListener('change', function (e) {
+							me.options.family = +e.target.value;
+							me.createSub();
+						});
+					},
+
+					initValue: function () {
+						this.values = {
+							numbers: [],		// 分表数量，几个分表就有几项
+							family: this.options.family,  	// 家庭数，用于计算每家每月的阶梯范围
+							totalNumber: 0, 	// 总表的本次消费总数量，用于计算总表与分表间误差，即总表损耗
+							total: 0,			// 总表的本次消费总金额，用于计算总表与分表间误差，即总表损耗
+							subtotals: [],		// 分表金额，几个分表就有几项
+							monthLadder: [],	// 每月阶梯范围
+							money: this.options.money // 阶梯费用
+						};
+
+						var formDoms = this.formDoms;
+
+						for (var i in formDoms) {
+							if (formDoms.hasOwnProperty(i)) {
+								formDoms[i].value = this.values[i];
+							}
+						}
+					},
+
+					initLadder: function () {
+						var ladder = this.options.ladder;
+						var monthLadder = [];
+
+						if (!this.values.family) {
+							alert('请填写家庭数量');
+							return;
+						}
+
+						for(var i = 0; i < ladder.length; i++) {
+							// 阶梯数/12个月/家庭数
+							monthLadder.push(ladder[i] / 12 / this.values.family);
+						}
+
+						this.values.monthLadder = monthLadder;
+					},
+
+					getStepNumber: function (number) {
+						var step1 = 0;
+						var step2 = 0;
+						var step3 = 0;
+						var monthLadder = this.values.monthLadder;
+
+						step3 = number - monthLadder[2] > 0 ? number - monthLadder[2] : 0;
+						step2 = (number - monthLadder[1] > 0 ? number - monthLadder[1] : 0) - step3;
+						step1 = (number - monthLadder[0] > 0 ? number - monthLadder[0] : 0) - step3 - step2;
+
+						return [step1, step2, step3];
+					},
+
+					calculat: function () {
+						var money = this.values.money;
+						var numbers = this.values.numbers;
+						var subtotals = [];
+						var stepNumbers = [];
+
+						for (var i = 0; i < numbers.length; i++) {
+							stepNumbers.push(this.getStepNumber(numbers[i]));
+						}
+
+						for (var i = 0; i < stepNumbers.length; i ++) {
+							var subtotal = 0;
+							var stepNumber = stepNumbers[i];
+
+							for (var j = 0; j < stepNumber.length; j++) {
+								subtotal += money[j] * stepNumber[j];
+							}
+
+							subtotals.push(subtotal);
+						}
+
+						this.values.subtotals = subtotals;
+					},
+
+					format: function (data, unit) {
+						if (Object.prototype.toString.call(data) === '[object Array]') {
+							return data.join(unit + '、') + unit;
+						}
+
+						return data + unit;
+					},
+
+					getResult: function () {
+
+						var me = this;
+						var tips = me.options.tips;
+
+						function getSubPrice() {
+							var subtotals = me.values.subtotals;
+							var html = [];
+
+							for (var i = 0; i < subtotals.length; i++) {
+								html.push([
+									'分表'  + i +'金额: ',
+									subtotals[i],
+									me.options.unit_price
+								].join(''));
+							}
+
+							return html.join('\n');
+						}
+
+						return [
+							[tips.stepPrice, ': ', me.format(me.values.money, me.options.unit_price)].join(''),
+							[tips.stepNum, ': ', me.format(me.values.monthLadder, me.options.unit_num)].join(''),
+							[tips.totalNum, ': ', me.format(me.values.totalNumber, me.options.unit_num)].join(''),
+							[tips.totalPrice, ': ', me.format(me.values.total, me.options.unit_price)].join(''),
+							getSubPrice()
+						].join('\n');
+					},
+
+					show: function () {
+						var result = this.getResult();
+						console.log(result);
+					},
+				};
+
+				root.Calculator = Calculator;
+
+			})(this);
+
+			var FAMILY = 2;
+
+			//北京居民执行阶梯电价，按年用电量计算。
+			//第一档电量，电量0-2880度内，电费0.4883元；
+			//第二档电量，电量2881-4800度以内，电价0.5383元；
+			//第三档电量，电量4800度以上，电价0.7883元
+			var ELECTRICITY_STEP_PRICE = [0.5, 0.6, 0.8];
+			var ELECTRICITY_STEP_STEP = [0, 2880, 4800];
+
+			var myElectricty = new Calculator({
+				wrapper: '#electricty',
+				family: FAMILY,
+				money: ELECTRICITY_STEP_PRICE,
+				ladder: ELECTRICITY_STEP_STEP,
+				unit_num: '度'
+			});
+		</script>
+	</body>
+</html>
