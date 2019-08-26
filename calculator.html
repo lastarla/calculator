@@ -335,7 +335,7 @@
 
 			var myElectricty = new Calculator({
 				wrapper: '#electricty',
-				title: '电费',
+				title: '每月电费',
 				family: FAMILY,
 				cycle: 12,
 				money: ELECTRICITY_STEP_PRICE,
@@ -347,13 +347,12 @@
 			//第一档，0-180吨，水费5元；
 			//第二档，181-260吨，水费7元；
 			//第三档，260吨以上，水费9元
-
 			var WATER_STEP_PRICE = [5, 7, 9];
 			var WATRE_STEP_AREA = [0, 180, 260];
 
 			var myWater = new Calculator({
 				wrapper: '#water',
-				title: '水费',
+				title: '每月水费',
 				family: FAMILY,
 				cycle: 1,
 				money: WATER_STEP_PRICE,
