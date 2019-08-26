@@ -5,12 +5,8 @@
 	<body>
 		<div>
 			<div>
-				<span>
-					计算电费
-				</span>
-			</div>
-			<div>
 				<div id="electricty"></div>
+				<div id="water"></div>
 			</div>
 		</div>
 		<script>
@@ -46,9 +42,11 @@
 					constructor: Calculator,
 
 					options: {
+						title: '',
 						family: 0,
-						money: [],
-						ladder: [],
+						money: [],	// 阶梯费用
+						ladder: [],	// 阶梯范围
+						cycle: 0,	// 阶梯计算周期，单位月
 						tips: {
 							stepPrice: '阶梯价格',
 							stepNum: '阶梯数量',
@@ -57,6 +55,20 @@
 						},
 						unit_price: '元',
 						unit_num: ''
+					},
+
+					defaultValue: function () {
+						return {
+							month: 1,			// 当前计算的是几个月的电费
+							totalNumber: 0, 	// 总表的本次消费总数量，用于计算总表与分表间误差，即总表损耗
+							total: 0,			// 总表的本次消费总金额，用于计算总表与分表间误差，即总表损耗
+							subtotals: [],		// 分表金额，几个分表就有几项
+							numbers: [],		// 分表数量，几个分表就有几项
+							monthLadder: [],	// 每月阶梯范围
+							money: this.options.money, // 阶梯费用
+							family: this.options.family,  	// 家庭数，用于计算每家每月的阶梯范围
+							cycle: this.options.cycle,		// 阶梯计算周期，用于计算月阶梯范围
+						};
 					},
 
 					init: function () {
@@ -84,6 +96,7 @@
 						var wrapper = querySel(this.options.wrapper);
 						var html = [
 							'<div class="wrapper">',
+								'<div>' + this.options.title + '</div>',
 								'<ul>',
 									'<li>',
 										'<span>总表数量:</span><input class="totalNumber" type="text">',
@@ -95,12 +108,21 @@
 										'<span>家庭数量:</span><input class="family" type="text">',
 									'</li>',
 									'<li>',
+										'<span>阶梯周期:</span><input class="cycle" type="text">',
+									'</li>',
+									'<li>',
+										'<span>月份数量:</span><input class="month" type="text">',
+									'</li>',
+									'<li>',
 										'<span>分表数量:</span>',
 										'<ul class="numbers"></ul>',
 									'</li>',
 								'</ul>',
 								'<div>',
 									'<span class="btn">计算</span>',
+								'</div>',
+								'<div>',
+									'<div class="result"></div>',
 								'</div>',
 							'</div>'
 						].join('');
@@ -114,18 +136,21 @@
 						this.formDoms = {
 							numbers: querySelAll(this.getSelector(['.numbers', 'input'])),
 							family: querySel(this.getSelector(['.family'])),
+							month: querySel(this.getSelector(['.month'])),
 							totalNumber: querySel(this.getSelector(['.totalNumber'])),
-							total: querySel(this.getSelector(['.total']))
+							total: querySel(this.getSelector(['.total'])),
+							cycle: querySel(this.getSelector(['.cycle']))
 						};
 
 						this.btn = querySel(this.getSelector(['.btn']));
+						this.result = querySel(this.getSelector(['.result']));
 					},
 
 					createSub: function () {
 						var html = [];
 
 						for (var i = 0; i < this.options.family; i++) {
-							html.push('<li><span>分表' + i + ':</span><input type="text"></li>');
+							html.push('<li><span>分表' + (i + 1) + ':</span><input type="text"></li>');
 						}
 
 						querySel(this.getSelector('.numbers')).innerHTML = html.join('');
@@ -173,15 +198,7 @@
 					},
 
 					initValue: function () {
-						this.values = {
-							numbers: [],		// 分表数量，几个分表就有几项
-							family: this.options.family,  	// 家庭数，用于计算每家每月的阶梯范围
-							totalNumber: 0, 	// 总表的本次消费总数量，用于计算总表与分表间误差，即总表损耗
-							total: 0,			// 总表的本次消费总金额，用于计算总表与分表间误差，即总表损耗
-							subtotals: [],		// 分表金额，几个分表就有几项
-							monthLadder: [],	// 每月阶梯范围
-							money: this.options.money // 阶梯费用
-						};
+						this.values = this.defaultValue();
 
 						var formDoms = this.formDoms;
 
@@ -196,14 +213,27 @@
 						var ladder = this.options.ladder;
 						var monthLadder = [];
 
-						if (!this.values.family) {
+						if (!+this.values.family) {
+							this.values.monthLadder = monthLadder;
 							alert('请填写家庭数量');
 							return;
 						}
 
+						if (!+this.values.month) {
+							this.values.monthLadder = monthLadder;
+							alert('月数应为大于1的整数');
+							return;
+						}
+
+						if (!+this.values.cycle) {
+							this.values.monthLadder = monthLadder;
+							alert('阶梯周期应为大于1的整数');
+							return;
+						}
+
 						for(var i = 0; i < ladder.length; i++) {
-							// 阶梯数/12个月/家庭数
-							monthLadder.push(ladder[i] / 12 / this.values.family);
+							// 阶梯数/12个月/家庭数*月数
+							monthLadder.push(Math.floor(ladder[i] / this.values.cycle / this.values.family * this.values.month));
 						}
 
 						this.values.monthLadder = monthLadder;
@@ -237,7 +267,7 @@
 							var stepNumber = stepNumbers[i];
 
 							for (var j = 0; j < stepNumber.length; j++) {
-								subtotal += money[j] * stepNumber[j];
+								subtotal += Math.ceil(money[j] * stepNumber[j]);
 							}
 
 							subtotals.push(subtotal);
@@ -265,13 +295,13 @@
 
 							for (var i = 0; i < subtotals.length; i++) {
 								html.push([
-									'分表'  + i +'金额: ',
+									'分表'  + (i + 1) +'金额: ',
 									subtotals[i],
 									me.options.unit_price
 								].join(''));
 							}
 
-							return html.join('\n');
+							return html.join('<br>');
 						}
 
 						return [
@@ -280,12 +310,13 @@
 							[tips.totalNum, ': ', me.format(me.values.totalNumber, me.options.unit_num)].join(''),
 							[tips.totalPrice, ': ', me.format(me.values.total, me.options.unit_price)].join(''),
 							getSubPrice()
-						].join('\n');
+						].join('<br>');
 					},
 
 					show: function () {
 						var result = this.getResult();
-						console.log(result);
+
+						this.result.innerHTML = result;
 					},
 				};
 
@@ -300,15 +331,36 @@
 			//第二档电量，电量2881-4800度以内，电价0.5383元；
 			//第三档电量，电量4800度以上，电价0.7883元
 			var ELECTRICITY_STEP_PRICE = [0.5, 0.6, 0.8];
-			var ELECTRICITY_STEP_STEP = [0, 2880, 4800];
+			var ELECTRICITY_STEP_AREA = [0, 2880, 4800];
 
 			var myElectricty = new Calculator({
 				wrapper: '#electricty',
+				title: '电费',
 				family: FAMILY,
+				cycle: 12,
 				money: ELECTRICITY_STEP_PRICE,
-				ladder: ELECTRICITY_STEP_STEP,
+				ladder: ELECTRICITY_STEP_AREA,
 				unit_num: '度'
 			});
+
+			//北京市居民课题水价
+			//第一档，0-180吨，水费5元；
+			//第二档，181-260吨，水费7元；
+			//第三档，260吨以上，水费9元
+
+			var WATER_STEP_PRICE = [5, 7, 9];
+			var WATRE_STEP_AREA = [0, 180, 260];
+
+			var myElectricty = new Calculator({
+				wrapper: '#water',
+				title: '水费',
+				family: FAMILY,
+				cycle: 1,
+				money: WATER_STEP_PRICE,
+				ladder: WATRE_STEP_AREA,
+				unit_num: '吨'
+			});
+
 		</script>
 	</body>
 </html>
